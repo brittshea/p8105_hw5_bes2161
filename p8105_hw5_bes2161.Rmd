@@ -7,6 +7,9 @@ output: github_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(tidyr)
+library(lubridate)
+library(rvest)
 library(p8105.datasets)
 library(viridis)
 
@@ -36,8 +39,8 @@ theme_set(theme_minimal() + theme(legend.position = "bottom"))
 ```{r}
 full_df = 
   tibble(
-    files = list.files("data/"),
-    path = str_c("data/", files)
+    files = list.files("data/prob_1/"),
+    path = str_c("data/prob_1/", files)
   ) %>% 
   mutate(data = map(path, read_csv)) %>% 
   unnest()
@@ -72,4 +75,73 @@ tidy_df %>%
 
 We see high within-subject correlation, and subjects in the control group do not change much over time whereas the outcome for the experiment group increases linearly.
 
+## Problem 2
 
+# Load and describe data:
+
+```{r}
+wp = read_csv("data/homicide-data.csv") %>% 
+  janitor::clean_names() %>% 
+  mutate_if(is.character, str_to_lower) %>% 
+  unite("city_state", city:state, sep = ", ") %>% 
+  mutate(reported_date = lubridate::ymd(reported_date))
+```
+
+This data frame includes data from the Washington Post on homicides in 50 large U.S. cities. There are 52,179 rows and 12 columns. It includes variables: id; report date; victim first and last names'; victim race, age, and sex; city and state; longitude and latitude; and disposition.
+
+# Tidy the data:
+
+```{r}
+homicides = wp %>% 
+  mutate(unsolved = disposition == "closed without arrest" | disposition == "open/no arrest") %>%
+  group_by(city_state) %>% 
+  summarise(
+    total = n(),
+    unsolved = sum(unsolved)
+  )
+
+```
+
+# Baltimore:
+
+```{r}
+baltimore = homicides %>% 
+  filter(city_state == "baltimore, md")
+
+prop.test(
+  x = pull(baltimore, unsolved),
+  n = pull(baltimore, total)) %>% 
+  broom::tidy() %>% 
+  select(estimate, starts_with("conf"))
+
+```
+
+# Function:
+
+```{r}
+prop_func = function(alpha, beta) {
+  prop.test(x = alpha, n = beta) %>% 
+  broom::tidy() %>% 
+  select(estimate, starts_with("conf"))
+}
+
+homicides = homicides %>% 
+  mutate(output = purrr::map2(unsolved, total, prop_func)) %>% 
+  unnest()
+
+```
+
+# Plot:
+
+```{r}
+homicides %>%
+  mutate(
+    estimate = str_c("n = ", estimate),
+    estimate = fct_inorder(estimate)) %>% 
+  ggplot(aes(x = city_state, y = estimate)) + 
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  labs(title = "Estimates and CIs by City") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+    
+```
