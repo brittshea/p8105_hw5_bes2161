@@ -87,7 +87,7 @@ wp = read_csv("data/homicide-data.csv") %>%
   mutate(reported_date = lubridate::ymd(reported_date))
 ```
 
-This data frame includes data from the Washington Post on homicides in 50 large U.S. cities. There are 52,179 rows and 12 columns. It includes variables: id; report date; victim first and last names'; victim race, age, and sex; city and state; longitude and latitude; and disposition.
+This data frame includes data from the Washington Post on homicides in 50 large U.S. cities. There are 52,179 rows and 12 columns. It includes variables: id; report date; victim first and last names; victim race, age, and sex; city and state; longitude and latitude; and disposition.
 
 # Tidy the data:
 
@@ -138,9 +138,9 @@ homicides %>%
   mutate(
     estimate = str_c("n = ", estimate),
     estimate = fct_inorder(estimate)) %>% 
-  ggplot(aes(x = city_state, y = estimate)) + 
-  geom_point() +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  ggplot(aes(x = city_state)) + 
+  geom_bar() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 1) +
   labs(title = "Estimates and CIs by City") +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
     
@@ -168,7 +168,7 @@ sim_t_test = function(m) {
 sim_results_df =
   expand_grid(
     true_mean = 0:6,
-    iter = 1:50
+    iter = 1:5000
   ) %>% 
   mutate(
     estimate_df = map(true_mean, sim_t_test)
@@ -180,30 +180,41 @@ sim_results_df =
 # Plot:
 
 ```{r}
-plot_sim_results = sim_results_df %>% 
+sim_results_df %>% 
   mutate(
-    flag = p.value < .05) %>% 
-  group_by(flag) %>% 
-  summarise(
-    mean(flag)) %>% 
-  ggplot(aes(x = flag, y = true_mean)) + 
-    geom_violin() + 
-    facet_grid(. ~ true_mean)
+     signif = case_when(
+       p.value < .05 ~ "signif",
+       p.value > .05 ~ "not_signif",
+       TRUE ~ ""
+       )) %>%
+  group_by(true_mean, signif) %>% 
+  ggplot(aes(x = true_mean, y = estimate, colour = signif)) + 
+  geom_violin()
 
 ```
 
-This plot shows the fraction of times the p.value is less than .05.
+This plot shows the fraction of times the p.value is less than .05. We can see that power increases as the true mean increases.
 
 # Plot:
 
 ```{r}
 sim_results_df %>% 
-  group_by(iter) %>%
-  summarise(
-    emp_mean = mean(p.value) %>% 
-  ggplot(aes(x = p.value)) + 
-  geom_bar()
+  group_by(true_mean, estimate) %>% 
+  ggplot(aes(x = true_mean, y = estimate)) + 
+  geom_point()
+
+sim_results_df %>% 
+  mutate(
+     signif = case_when(
+       p.value < .05 ~ "signif",
+       p.value > .05 ~ "not_signif",
+       TRUE ~ ""
+       )) %>%
+  filter(signif != "not_signif") %>% 
+  group_by(true_mean, estimate) %>% 
+  ggplot(aes(x = true_mean, y = estimate)) + 
+  geom_point()
 
 ```
 
-No, the two means are not the same. When we have low power, the means are really different, and emphasized the need to be skeptical when reporting results.
+No, the two means are not the same. When we have low power, the means are really different. This emphasizes the need to be skeptical when reporting results.
