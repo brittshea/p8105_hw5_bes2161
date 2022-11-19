@@ -145,3 +145,65 @@ homicides %>%
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
     
 ```
+
+## Problem 3
+
+# Function:
+
+```{r}
+sim_t_test = function(m) {
+  
+  sample = rnorm(30, mean = m, sd = 5)
+  
+  t.test(sample) %>% 
+    broom::tidy() %>% 
+    select(estimate, p.value)
+}
+
+```
+
+# Iterate: 
+
+```{r}
+sim_results_df =
+  expand_grid(
+    true_mean = 0:6,
+    iter = 1:50
+  ) %>% 
+  mutate(
+    estimate_df = map(true_mean, sim_t_test)
+  ) %>% 
+  unnest(estimate_df)
+
+```
+
+# Plot:
+
+```{r}
+plot_sim_results = sim_results_df %>% 
+  mutate(
+    flag = p.value < .05) %>% 
+  group_by(flag) %>% 
+  summarise(
+    mean(flag)) %>% 
+  ggplot(aes(x = flag, y = true_mean)) + 
+    geom_violin() + 
+    facet_grid(. ~ true_mean)
+
+```
+
+This plot shows the fraction of times the p.value is less than .05.
+
+# Plot:
+
+```{r}
+sim_results_df %>% 
+  group_by(iter) %>%
+  summarise(
+    emp_mean = mean(p.value) %>% 
+  ggplot(aes(x = p.value)) + 
+  geom_bar()
+
+```
+
+No, the two means are not the same. When we have low power, the means are really different, and emphasized the need to be skeptical when reporting results.
